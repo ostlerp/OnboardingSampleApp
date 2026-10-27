@@ -30,7 +30,7 @@ function splitLine(line) {
  * Parses CSV text into headers and rows. A row with more fields than headers
  * has its extra fields merged into the last column, and a warning is added.
  * @param {string} text
- * @returns {{headers: string[], rows: Object<string, string>[], warnings: string[]}}
+ * @returns {{headers: string[], rows: Object<string, string>[], lines: number[], warnings: string[]}} lines[i] is the file line of rows[i]
  */
 function parseCsv(text) {
   const lines = text
@@ -38,11 +38,12 @@ function parseCsv(text) {
     .map((line, index) => ({ line, number: index + 1 }))
     .filter(entry => entry.line.trim() !== '');
   if (lines.length === 0) {
-    return { headers: [], rows: [], warnings: [] };
+    return { headers: [], rows: [], lines: [], warnings: [] };
   }
 
   const headers = splitLine(lines[0].line).map(header => header.trim());
   const rows = [];
+  const rowLines = [];
   const warnings = [];
 
   for (const { line, number } of lines.slice(1)) {
@@ -53,9 +54,10 @@ function parseCsv(text) {
       fields = [...fields.slice(0, headers.length - 1), fields.slice(headers.length - 1).join(',')];
     }
     rows.push(Object.fromEntries(headers.map((header, i) => [header, (fields[i] ?? '').trim()])));
+    rowLines.push(number);
   }
 
-  return { headers, rows, warnings };
+  return { headers, rows, lines: rowLines, warnings };
 }
 
 module.exports = {

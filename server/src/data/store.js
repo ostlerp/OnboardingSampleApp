@@ -3,13 +3,15 @@
  * Simple storage for the training exercise - no database needed
  */
 
-const { createCustomer, createTenant, createDefaultOnboardingSteps } = require('../models');
+const { createCustomer, createTenant, createDefaultOnboardingSteps, calculateProgress } = require('../models');
 
 // In-memory storage
 const store = {
   customers: [],
   tenants: [],
-  onboardingStates: []
+  onboardingStates: [],
+  mappings: {},
+  importedClients: {}
 };
 
 // Seed with example data
@@ -75,6 +77,13 @@ function addTenant(tenant) {
   return tenant;
 }
 
+function updateTenant(customerId, patch) {
+  const index = store.tenants.findIndex(t => t.customerId === customerId);
+  if (index === -1) return null;
+  store.tenants[index] = { ...store.tenants[index], ...patch, updatedAt: new Date().toISOString() };
+  return store.tenants[index];
+}
+
 function getOnboardingState(customerId) {
   return store.onboardingStates.find(s => s.customerId === customerId);
 }
@@ -97,6 +106,35 @@ function updateOnboardingState(customerId, updates) {
   return null;
 }
 
+function setOnboardingStepStatus(customerId, stepId, status) {
+  const state = getOnboardingState(customerId);
+  if (!state) return null;
+  const steps = state.steps.map(step => (step.id === stepId ? { ...step, status } : step));
+  return updateOnboardingState(customerId, { steps, progressPercent: calculateProgress(steps) });
+}
+
+function getMapping(customerId) {
+  return store.mappings[customerId];
+}
+
+function saveMapping(customerId, mapping) {
+  store.mappings[customerId] = mapping;
+  return mapping;
+}
+
+function getImportedClients(tenantId) {
+  return { ...(store.importedClients[tenantId] || {}) };
+}
+
+function saveImportedClients(tenantId, records) {
+  const clients = store.importedClients[tenantId] || {};
+  records.forEach(record => {
+    clients[record.externalId] = record;
+  });
+  store.importedClients[tenantId] = clients;
+  return { ...clients };
+}
+
 module.exports = {
   getCustomers,
   getCustomerById,
@@ -104,8 +142,14 @@ module.exports = {
   getTenants,
   getTenantByCustomerId,
   addTenant,
+  updateTenant,
   getOnboardingState,
   getAllOnboardingStates,
   addOnboardingState,
-  updateOnboardingState
+  updateOnboardingState,
+  setOnboardingStepStatus,
+  getMapping,
+  saveMapping,
+  getImportedClients,
+  saveImportedClients
 };

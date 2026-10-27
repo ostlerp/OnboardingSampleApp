@@ -245,6 +245,16 @@ Intentionally boring and fast:
 | GET | `/api/customers/:id/onboarding` | Get onboarding state |
 | GET | `/api/onboarding` | Dashboard view (all states + customer info) |
 | GET | `/api/tenants/:customerId` | Get tenant by customer ID |
+| GET | `/api/customers/options` | Industry and region lists for the Customer Info form |
+| POST | `/api/customers` | Create a customer (completes Customer Info) |
+| POST | `/api/customers/:id/mapping/analyze` | Parse an uploaded clients CSV and suggest column mappings |
+| PUT | `/api/customers/:id/mapping` | Save the clients mapping (completes Data Mapping) |
+| GET | `/api/customers/:id/mapping` | Get the saved mapping |
+| GET | `/api/customers/:id/tenant-defaults` | Suggested tenant configuration for a customer |
+| GET | `/api/tenants/options` | Plans for the Tenant Setup form |
+| PUT | `/api/tenants/:customerId` | Create or update the tenant configuration |
+| POST | `/api/tenants/:customerId/provision` | Start provisioning; the tenant becomes active after `PROVISION_DELAY_MS` (default 2000) and completes Tenant Setup |
+| POST | `/api/customers/:id/import` | Import clients into the active tenant (completes Import when every row imports) |
 
 ---
 

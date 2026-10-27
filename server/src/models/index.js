@@ -18,7 +18,12 @@
  * @property {string} customerId - Associated customer ID
  * @property {string} status - 'pending' | 'provisioning' | 'active' | 'failed'
  * @property {string} plan - 'starter' | 'professional' | 'enterprise'
+ * @property {string} subdomain - Tenant subdomain, empty until configured
+ * @property {string} adminEmail - Tenant admin user email, empty until configured
+ * @property {string} region - Data region, copied from the customer
+ * @property {string} error - Last provisioning error, empty when none
  * @property {string} createdAt - ISO timestamp
+ * @property {string} updatedAt - ISO timestamp
  */
 
 /**
@@ -59,11 +64,16 @@ function createCustomer(data) {
  */
 function createTenant(data) {
   return {
-    id: data.id || `tenant_${Date.now()}`,
+    id: data.id || `tenant_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
     customerId: data.customerId || '',
     status: data.status || 'pending',
     plan: data.plan || 'starter',
-    createdAt: data.createdAt || new Date().toISOString()
+    subdomain: data.subdomain || '',
+    adminEmail: data.adminEmail || '',
+    region: data.region || '',
+    error: data.error || '',
+    createdAt: data.createdAt || new Date().toISOString(),
+    updatedAt: data.updatedAt || data.createdAt || new Date().toISOString()
   };
 }
 

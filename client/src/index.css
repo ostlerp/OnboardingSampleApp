@@ -258,3 +258,94 @@ header p {
   margin-top: 16px;
   padding-left: 20px;
 }
+
+.tenant-tab {
+  max-width: 560px;
+}
+
+.tenant-tab h2 {
+  margin-bottom: 4px;
+}
+
+.tenant-fieldset {
+  border: none;
+}
+
+.tenant-status {
+  margin-bottom: 16px;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: #e5e7eb;
+  color: #374151;
+  font-size: 0.85rem;
+  text-transform: capitalize;
+}
+
+.status-badge.provisioning {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.status-badge.active {
+  background: #d1fae5;
+  color: #047857;
+}
+
+.status-badge.failed {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.button-row {
+  display: flex;
+  gap: 12px;
+}
+
+.btn-secondary {
+  padding: 10px 20px;
+  border: 1px solid #2563eb;
+  border-radius: 6px;
+  background: white;
+  color: #2563eb;
+  font: inherit;
+  cursor: pointer;
+}
+
+.btn-secondary:disabled {
+  border-color: #9ca3af;
+  color: #9ca3af;
+  cursor: default;
+}
+
+.import-tab {
+  max-width: 720px;
+}
+
+.import-tab h2 {
+  margin-bottom: 4px;
+}
+
+.readiness-list {
+  list-style: none;
+  margin-bottom: 16px;
+}
+
+.readiness-list li {
+  margin-bottom: 4px;
+}
+
+.readiness-list .ready {
+  color: #047857;
+}
+
+.readiness-list .not-ready {
+  color: #b45309;
+}
+
+.import-summary {
+  margin-top: 16px;
+}
