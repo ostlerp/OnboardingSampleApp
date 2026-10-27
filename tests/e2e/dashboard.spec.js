@@ -24,9 +24,11 @@ test.describe('Onboarding Dashboard', () => {
   test('should display example customer in onboarding queue', async ({ page }) => {
     await page.goto('/');
 
-    // Wait for data to load and verify example customer is shown
-    await expect(page.locator('.customer-card')).toBeVisible();
-    await expect(page.locator('.customer-card h3')).toContainText('Acme Corporation');
+    // Wait for data to load and verify the seeded example customer is shown.
+    // Scoped to Acme: the customer spec adds a second card to the shared server.
+    const acme = page.locator('.customer-card', { hasText: 'Acme Corporation' });
+    await expect(acme).toBeVisible();
+    await expect(acme.locator('h3')).toContainText('Acme Corporation');
   });
 
   test('should switch between tabs', async ({ page }) => {
