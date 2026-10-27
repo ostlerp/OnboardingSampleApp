@@ -11,10 +11,10 @@ CS uploads a customer's clients file, sees which columns and values were mapped 
 3. Each distinct status and entity-type value in the file shows with a suggested standard value, or "unmapped". CS can change any of these.
 4. A suggested date format is shown, and CS can change it. Dates are previewed in ISO format, and a date that doesn't match the chosen format shows as a row error.
 5. The preview shows the first 20 mapped rows with an error per row: a required field is empty, a date or number can't be read, or a value is unmapped.
-6. Save is rejected with field-level errors while a required field or any status/entity-type value is unmapped. A successful save marks "Data Mapping" complete, and the dashboard progress goes up by 25%.
+6. Save is rejected with field-level errors while a required field or any status/entity-type value is unmapped. A successful save marks "Data Mapping" complete, and the dashboard progress reflects it (each completed step is 25%). Saving again doesn't change progress.
 7. `GET /api/customers/:id/mapping` returns the saved mapping, and reopening the tab restores it.
 8. The suggested mappings cover all three sample clients files with no unmapped required fields and no unmapped status or entity-type values.
-9. Existing endpoints, the seed data and the existing tests keep working unchanged.
+9. Existing endpoints and the seed data keep working unchanged, and the existing tests keep passing. As in the Customer Info plan, the only test change allowed is scoping `tests/e2e/dashboard.spec.js`'s Acme assertions to Acme's card.
 
 ## Technical Plan
 
@@ -29,7 +29,7 @@ CS uploads a customer's clients file, sees which columns and values were mapped 
   - Status and entity type have standard values, and every source value must be mapped to one. Customer C's `Limited Company` maps to Corporation.
   - The date format is chosen per file, with a suggestion based on the data, and CS confirms it.
   - Revenue is read as a number.
-  - Industry and payment terms stay as free text, because there's no standard list to map them to.
+  - The clients' industry and payment terms stay as free text. Values like `Veterinary` or `TECH` don't fit the Customer Info plan's industry list, which describes the customer being onboarded, not its clients.
 - **Saving stores the mapping and the uploaded CSV in memory for that customer**, so the Import step doesn't need a second upload. A save with every required field and every value mapped marks step 2 complete. Steps don't have to be done in order, so Acme can complete step 2 before step 1.
 
 ### Architecture overview
@@ -51,13 +51,13 @@ The routes go in `server/src/index.js`:
 
 The store gets `mappings` keyed by customer id. A successful save sets step 2 to `completed` with `updateOnboardingState` and recalculates progress with `calculateProgress`.
 
-The client gets a `DataMappingTab` component, which replaces the placeholder. It has a customer selector, a file input read with `FileReader`, a column-mapping table, a value-mapping table, a date-format selector, a preview table and a Save button. After a successful save it calls the same `reloadOnboarding()` the Customer Info plan adds.
+The client gets a `DataMappingTab` component, which replaces the placeholder. It has a customer selector (`CustomerSelect`, shared with the Customer Info tab), a file input read with `FileReader`, a column-mapping table, a value-mapping table, a date-format selector, a preview table and a Save button. After a successful save it calls the same `reloadOnboarding()` the Customer Info plan adds.
 
 ### Implementation approach
 
 All the mapping logic is pure functions, and the routes just chain them. That keeps the logic easy to test and lets Contacts, chart of accounts and transactions reuse it by adding their own target fields. The first slice delivers the most useful part early: upload a file and see the suggested column mapping. The analyze response returns the distinct values, so the preview doesn't have to re-parse the whole file. The preview is capped at 20 rows. It's one branch, with the slices as checkpoints.
 
-**Shared with the Customer Info plan** (`docs/customer-info-plan.md`): exporting `app` from `index.js` (so routes can be tested in-process) and `reloadOnboarding()` in `App.jsx`. Whichever plan is built first adds them.
+**Shared with the Customer Info plan** (`docs/customer-info-plan.md`): exporting `app` from `index.js` (so routes can be tested in-process), `reloadOnboarding()` in `App.jsx`, and the `CustomerSelect` component. Whichever plan is built first adds them.
 
 Gotcha: the server test script's glob `src/**/*.test.js` isn't quoted, so the shell expands it and only matches files exactly one folder below `src/`. New tests must live at `src/mapping/*.test.js`.
 
@@ -81,7 +81,7 @@ None: this is a local workshop app with no deployment.
 
 - `node:test` unit tests for each pure module. These include the overflow merge, using Customer B's actual first row, and an AC8 test that runs `suggest` on the three sample clients files read from `sample-data/`.
 - In-process HTTP tests for analyze, preview, save (400 vs 200, and the step 2 transition) and GET.
-- One Playwright test that uploads `sample-data/CustomerB_XYZFinancialServices/clients.csv`, saves, and checks the dashboard card for 2 completed steps.
+- One Playwright test that picks Acme, uploads `sample-data/CustomerB_XYZFinancialServices/clients.csv`, saves, and checks that Acme's card shows "Data Mapping" completed. It doesn't assert a progress number, because other tests and earlier local runs share the same in-memory server. No other test asserts Acme's step 2, so this is safe to run in parallel.
 
 ### Validation suite
 
@@ -126,7 +126,7 @@ Covers AC1, AC2, and the column part of AC8. CS can upload a file and immediatel
 - `server/src/mapping/targets.js`: client target fields and the required ones.
 - `server/src/mapping/suggest.js`: column suggestions from the alias list.
 - `server/src/index.js`: export `app` if not already done; raise the JSON limit to 1 MB; add `POST /api/customers/:id/mapping/analyze` (columns and warnings only).
-- `client/src/App.jsx`: `DataMappingTab` with customer selector, file input and a column-mapping table with override dropdowns.
+- `client/src/App.jsx`: `DataMappingTab` with `CustomerSelect` (add it if Customer Info hasn't), file input and a column-mapping table with override dropdowns.
 - Tests: `csv.test.js` (including Customer B's first row), `suggest.test.js` (all three sample files' required columns), a route test for analyze, and an e2e test that uploads the Customer B file and sees the suggestions.
 
 ### Slice 2: save the mapping and complete the step (~220 lines)
@@ -137,7 +137,7 @@ Covers AC6 (column rules only), AC7 and AC9. The mapping is saved and step 2's p
 - `PUT /api/customers/:id/mapping`: 400 while a required field is unmapped; on success, store the mapping and CSV, set step 2 `completed` and recalculate progress.
 - `GET /api/customers/:id/mapping`.
 - Client: Save button, field errors from a 400, restore a saved mapping when the tab opens, call `reloadOnboarding()` after saving.
-- Tests: route tests for 400, 200, the step 2 transition and GET; extend the e2e test to save and check the dashboard card.
+- Tests: route tests for 400, 200, the step 2 transition and GET; extend the e2e test to save and check that Acme's card shows "Data Mapping" completed.
 
 ### Slice 3: map values, dates and numbers (~380 lines)
 
