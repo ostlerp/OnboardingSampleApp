@@ -67,7 +67,7 @@ function App() {
           <CustomerInfoTab onCreated={reloadOnboarding} />
         )}
         {activeTab === 'data-mapping' && (
-          <DataMappingTab />
+          <DataMappingTab onSaved={reloadOnboarding} />
         )}
         {activeTab === 'tenant-setup' && (
           <PlaceholderTab title="Tenant Setup" description="Provision and configure customer tenant" />

@@ -3,13 +3,14 @@
  * Simple storage for the training exercise - no database needed
  */
 
-const { createCustomer, createTenant, createDefaultOnboardingSteps } = require('../models');
+const { createCustomer, createTenant, createDefaultOnboardingSteps, calculateProgress } = require('../models');
 
 // In-memory storage
 const store = {
   customers: [],
   tenants: [],
-  onboardingStates: []
+  onboardingStates: [],
+  mappings: {}
 };
 
 // Seed with example data
@@ -97,6 +98,22 @@ function updateOnboardingState(customerId, updates) {
   return null;
 }
 
+function setOnboardingStepStatus(customerId, stepId, status) {
+  const state = getOnboardingState(customerId);
+  if (!state) return null;
+  const steps = state.steps.map(step => (step.id === stepId ? { ...step, status } : step));
+  return updateOnboardingState(customerId, { steps, progressPercent: calculateProgress(steps) });
+}
+
+function getMapping(customerId) {
+  return store.mappings[customerId];
+}
+
+function saveMapping(customerId, mapping) {
+  store.mappings[customerId] = mapping;
+  return mapping;
+}
+
 module.exports = {
   getCustomers,
   getCustomerById,
@@ -107,5 +124,8 @@ module.exports = {
   getOnboardingState,
   getAllOnboardingStates,
   addOnboardingState,
-  updateOnboardingState
+  updateOnboardingState,
+  setOnboardingStepStatus,
+  getMapping,
+  saveMapping
 };

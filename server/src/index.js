@@ -7,6 +7,7 @@ const { INDUSTRIES, REGIONS, validateCustomerInput } = require('./customers/vali
 const { parseCsv } = require('./mapping/csv');
 const { suggestColumns } = require('./mapping/suggest');
 const { CLIENT_FIELDS } = require('./mapping/targets');
+const { validateColumns, pickColumns } = require('./mapping/validate');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -108,6 +109,43 @@ app.post('/api/customers/:id/mapping/analyze', (req, res) => {
 
   const { headers, warnings } = parseCsv(req.body.csv);
   res.json({ headers, warnings, fields: CLIENT_FIELDS, columns: suggestColumns(headers) });
+});
+
+// Save a customer's mapping and the file it applies to, completing Data Mapping
+app.put('/api/customers/:id/mapping', (req, res) => {
+  if (!store.getCustomerById(req.params.id)) {
+    return res.status(404).json({ error: 'Customer not found' });
+  }
+  const { csv, columns, fileName } = req.body || {};
+  if (typeof csv !== 'string' || csv.trim() === '') {
+    return res.status(400).json({ errors: { csv: 'Choose a clients CSV file' } });
+  }
+  const { headers } = parseCsv(csv);
+  const errors = validateColumns(columns, headers);
+  if (Object.keys(errors).length > 0) {
+    return res.status(400).json({ errors });
+  }
+
+  const mapping = store.saveMapping(req.params.id, {
+    entity: 'clients',
+    fileName: typeof fileName === 'string' ? fileName : '',
+    csv,
+    columns: pickColumns(columns),
+    savedAt: new Date().toISOString()
+  });
+  store.setOnboardingStepStatus(req.params.id, 'step_2', 'completed');
+
+  res.json(mapping);
+});
+
+// Get a customer's saved mapping, with the file details the Data Mapping tab shows
+app.get('/api/customers/:id/mapping', (req, res) => {
+  const mapping = store.getMapping(req.params.id);
+  if (!mapping) {
+    return res.status(404).json({ error: 'Mapping not found' });
+  }
+  const { headers, rows, warnings } = parseCsv(mapping.csv);
+  res.json({ ...mapping, fields: CLIENT_FIELDS, headers, rowCount: rows.length, warnings });
 });
 
 module.exports = app;
