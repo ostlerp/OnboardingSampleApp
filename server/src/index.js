@@ -1,13 +1,15 @@
 const express = require('express');
 const cors = require('cors');
 const store = require('./data/store');
-const { createCustomer, createDefaultOnboardingSteps, calculateProgress } = require('./models');
+const { createCustomer, createTenant, createDefaultOnboardingSteps, calculateProgress } = require('./models');
 const { normalizeCustomerInput } = require('./customers/normalize');
 const { INDUSTRIES, REGIONS, validateCustomerInput } = require('./customers/validate');
 const { parseCsv } = require('./mapping/csv');
 const { suggestColumns } = require('./mapping/suggest');
 const { CLIENT_FIELDS } = require('./mapping/targets');
 const { validateColumns, pickColumns } = require('./mapping/validate');
+const { PLANS } = require('./tenants/options');
+const { suggestSubdomain, normalizeTenantConfig, validateTenantConfig } = require('./tenants/config');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -66,6 +68,11 @@ app.get('/api/onboarding', (req, res) => {
   });
   
   res.json(dashboard);
+});
+
+// Plans the Tenant Setup form offers; registered before /api/tenants/:customerId
+app.get('/api/tenants/options', (req, res) => {
+  res.json({ plans: PLANS });
 });
 
 // Get tenant by customer ID
@@ -146,6 +153,48 @@ app.get('/api/customers/:id/mapping', (req, res) => {
   }
   const { headers, rows, warnings } = parseCsv(mapping.csv);
   res.json({ ...mapping, fields: CLIENT_FIELDS, headers, rowCount: rows.length, warnings });
+});
+
+// Suggested tenant configuration for a customer
+app.get('/api/customers/:id/tenant-defaults', (req, res) => {
+  const customer = store.getCustomerById(req.params.id);
+  if (!customer) {
+    return res.status(404).json({ error: 'Customer not found' });
+  }
+  res.json({
+    plan: 'starter',
+    subdomain: suggestSubdomain(customer.name),
+    adminEmail: customer.contactEmail,
+    region: customer.region
+  });
+});
+
+// Create or update a customer's tenant configuration while it is pending or failed
+app.put('/api/tenants/:customerId', (req, res) => {
+  const customer = store.getCustomerById(req.params.customerId);
+  if (!customer) {
+    return res.status(404).json({ error: 'Customer not found' });
+  }
+  const existing = store.getTenantByCustomerId(customer.id);
+  if (existing && !['pending', 'failed'].includes(existing.status)) {
+    return res.status(409).json({ error: `Tenant is ${existing.status} and can no longer be changed` });
+  }
+
+  const config = normalizeTenantConfig(req.body);
+  const errors = validateTenantConfig(config);
+  if (Object.keys(errors).length > 0) {
+    return res.status(400).json({ errors });
+  }
+  const taken = store.getTenants().some(t => t.subdomain === config.subdomain && t.customerId !== customer.id);
+  if (taken) {
+    return res.status(409).json({ errors: { subdomain: 'Subdomain is already taken' } });
+  }
+
+  if (existing) {
+    return res.json(store.updateTenant(customer.id, { ...config, region: customer.region }));
+  }
+  const tenant = store.addTenant(createTenant({ customerId: customer.id, ...config, region: customer.region }));
+  res.status(201).json(tenant);
 });
 
 module.exports = app;

@@ -76,6 +76,13 @@ function addTenant(tenant) {
   return tenant;
 }
 
+function updateTenant(customerId, patch) {
+  const index = store.tenants.findIndex(t => t.customerId === customerId);
+  if (index === -1) return null;
+  store.tenants[index] = { ...store.tenants[index], ...patch, updatedAt: new Date().toISOString() };
+  return store.tenants[index];
+}
+
 function getOnboardingState(customerId) {
   return store.onboardingStates.find(s => s.customerId === customerId);
 }
@@ -121,6 +128,7 @@ module.exports = {
   getTenants,
   getTenantByCustomerId,
   addTenant,
+  updateTenant,
   getOnboardingState,
   getAllOnboardingStates,
   addOnboardingState,
