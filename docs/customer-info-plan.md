@@ -17,7 +17,7 @@ CS needs to enter a new customer being onboarded, get the data validated and cle
    - an unknown industry or region returns 400 listing the allowed values
 6. `PUT /api/customers/:id` applies the same rules, except the duplicate check ignores the customer's own current name. It returns 404 for an unknown id, and the edits show on the Dashboard.
 7. `GET /api/customers/options` returns the industry and region lists the form uses.
-8. Seeded Acme, all existing endpoints and the existing unit and e2e tests keep working unchanged.
+8. Seeded Acme and all existing endpoints keep working unchanged, and the existing unit and e2e tests keep passing. The only test change allowed is scoping `tests/e2e/dashboard.spec.js`'s Acme assertions to Acme's card, because the dashboard can now show more than one card.
 
 ## Technical Plan
 
@@ -28,11 +28,11 @@ CS needs to enter a new customer being onboarded, get the data validated and cle
 - **The server owns validation and the dropdown lists.** The industry and region lists come from `GET /api/customers/options`. The form only uses built-in browser checks (`required`, `type=email`) and shows the server's error for each field. Rejected: copying the validation rules into the client, which would let the two drift apart.
 - **Unknown industry or region values are rejected.** Matching ignores case and accepts a small set of alias spellings (e.g. `"na"` becomes `North America`). Anything not in the list gets a 400 that names the allowed values. Rejected: silently accepting free text, which would put inconsistent values in the store.
 - **Duplicate names return 409.** Two names count as the same after trimming, collapsing spaces and ignoring case. An update doesn't count as a duplicate of the customer's own current name.
-- **Lists:** Industries: Accounting, Financial Services, Manufacturing, Technology, Healthcare, Retail, Other. Regions: North America, EMEA, APAC, LATAM. Seeded Acme ("Manufacturing", "North America") fits these lists as is.
+- **Lists:** Industries: Accounting, Financial Services, Manufacturing, Technology, Healthcare, Retail, Other. Regions: North America, EMEA, APAC, LATAM. Seeded Acme ("Manufacturing", "North America") fits these lists as is. These lists describe the customer being onboarded. They are not used for the industry of that customer's own clients, which the Data Mapping plan keeps as free text.
 
 ### Architecture overview
 
-This keeps the existing setup: Express storing data in memory, and React with Vite calling `/api` through a proxy. A new module, `server/src/customers/`, holds `normalize.js` and `validate.js`. Both are pure functions with no dependencies, written in the same style as `server/src/models/index.js`, and they hold the industry and region lists and the alias map. The `POST`/`PUT` routes chain them together: normalize, then validate, then check for duplicates against the store, then save. On create, the route also adds an onboarding state using `createDefaultOnboardingSteps()`, sets step 1 to `completed`, and calculates progress with the existing `calculateProgress`. `server/src/index.js` exports `app` and only starts listening when run directly (`require.main === module`), so tests can start the app themselves.
+This keeps the existing setup: Express storing data in memory, and React with Vite calling `/api` through a proxy. A new module, `server/src/customers/`, holds `options.js` (the industry and region lists and the alias map), `normalize.js` and `validate.js`. All are pure functions with no dependencies, written in the same style as `server/src/models/index.js`; `normalize.js` and `validate.js` import the lists from `options.js`. `GET /api/customers/options` must be registered before the existing `GET /api/customers/:id`, or Express matches `options` as a customer id and returns 404. The `POST`/`PUT` routes chain them together: normalize, then validate, then check for duplicates against the store, then save. On create, the route also adds an onboarding state using `createDefaultOnboardingSteps()`, sets step 1 to `completed`, and calculates progress with the existing `calculateProgress`. `server/src/index.js` exports `app` and only starts listening when run directly (`require.main === module`), so tests can start the app themselves.
 
 The client gets a `CustomerInfoTab` component, which replaces the placeholder. It loads the dropdown lists, shows a create form plus a selector for picking an existing customer to edit, and shows field errors from 400 and 409 responses. `App` changes its one-off fetch on mount into a `reloadOnboarding()` function, so the Dashboard updates after a save.
 
@@ -41,6 +41,8 @@ The client gets a `CustomerInfoTab` component, which replaces the placeholder. I
 The first slice that works on its own is AC2 + AC1: the create route plus the form, with only the required-field checks. That alone lets CS add customers. Later slices add email and list validation (AC3, AC5), duplicate detection (AC4), editing (AC6), and the lists endpoint (AC7, which the dropdowns need, so in practice it lands with the form).
 
 The store already has `addCustomer`, `addOnboardingState` and `updateOnboardingState`. A new `updateCustomer(id, patch)` is the only addition to the store. The ID becomes `cust_${Date.now()}_${random}`, because two customers created in the same millisecond would otherwise get the same ID. This is changed in `createCustomer` itself, which keeps the existing `startsWith('cust_')` test passing. The plan is one branch, with the slices as checkpoints.
+
+**Shared with the Data Mapping plan** (`docs/data-mapping-plan.md`): exporting `app` from `index.js`, `reloadOnboarding()` in `App.jsx`, and a `CustomerSelect` component used by both tabs. Whichever plan is built first adds them.
 
 Gotcha: the server test script's glob `src/**/*.test.js` isn't quoted, so the shell expands it and only matches files exactly one folder below `src/`. New tests must live at `src/customers/*.test.js`.
 
@@ -65,7 +67,7 @@ None: this is a local workshop app with no deployment.
 - `node:test` unit tests for normalize and validate: aliases, case handling, spaces, email format, and the error shape.
 - In-process HTTP tests in `server/src/customers/routes.test.js`. They start `app` on port 0 and use Node 20's built-in `fetch`, so no new dependencies are needed. They cover 201, 400, 409 and 404, the onboarding state being created, and the duplicate check ignoring the customer's own name.
 - Playwright tests for AC1: an invalid submit shows the field errors, a valid submit puts the card in the queue at 25%, and an edit shows on the card.
-- The existing tests keep running unchanged, which covers AC8.
+- Playwright runs test files in parallel against one shared in-memory server, which is also reused between local runs. So new e2e tests create customers with unique names (e.g. a timestamp suffix) and only change customers they created. `dashboard.spec.js` scopes its Acme assertions to Acme's card, and otherwise the existing tests run unchanged (AC8).
 
 ### Validation suite
 
@@ -97,6 +99,40 @@ Content-Type: application/json
 - `server/src/models/models.test.js`: `node:test` with `describe`/`it` and `node:assert`.
 - `server/src/index.js`: route style and `{ error }` 404 bodies.
 - `tests/e2e/dashboard.spec.js`: selectors like `.customer-card` and `getByRole`.
+
+## Slices
+
+Each slice is under ~400 lines including tests and leaves the app working. Estimates are rough.
+
+### Slice 1: create a customer end to end (~360 lines)
+
+Covers AC1, AC2, AC7, AC8, plus the required-field part of AC3.
+
+- `server/src/index.js`: export `app`, only listen when run directly; add `GET /api/customers/options` (before `GET /api/customers/:id`) and `POST /api/customers` (required-field check only, 400 with `errors`); create the onboarding state with step 1 `completed` and progress 25%.
+- `server/src/customers/options.js`: industry and region lists.
+- `server/src/models/index.js`: collision-safe `cust_` ID.
+- `client/src/App.jsx`: `reloadOnboarding()`; `CustomerInfoTab` create form with the two dropdowns; call reload after a successful save.
+- `client/src/index.css`: form styles.
+- Tests: `server/src/customers/routes.test.js` (201, 400 on missing fields, options list, onboarding state created); `tests/e2e/customer-info.spec.js` (valid submit with a unique name → card in queue at 25%); scope `dashboard.spec.js`'s Acme assertions to Acme's card.
+
+### Slice 2: validate and normalize (~335 lines)
+
+Covers the rest of AC3, plus AC4 and AC5.
+
+- `server/src/customers/normalize.js`: trim and collapse name, lowercase email, alias and case matching for industry and region.
+- `server/src/customers/validate.js`: required fields, email format, allowed-list check with "Must be one of" messages, duplicate-name check.
+- Wire both into `POST`; 409 for duplicates.
+- Client: show each server error next to its field.
+- Tests: `normalize.test.js` and `validate.test.js`; route tests for 400 and 409; e2e test for an invalid submit showing field errors.
+
+### Slice 3: edit an existing customer (~200 lines)
+
+Covers AC6.
+
+- `server/src/data/store.js`: `updateCustomer(id, patch)`.
+- `PUT /api/customers/:id`: same normalize and validate, duplicate check excluding the customer itself, 404 for an unknown id.
+- Client: `CustomerSelect` on the Customer Info tab that loads the customer into the form and saves with `PUT`. Reuse it if the Data Mapping plan already added it.
+- Tests: route tests for update, 404 and the self-duplicate rule; e2e test that creates its own customer, edits it, and sees the edit on its dashboard card (never edits Acme).
 
 ## Validation Plan
 
