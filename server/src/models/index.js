@@ -43,7 +43,7 @@
  */
 function createCustomer(data) {
   return {
-    id: data.id || `cust_${Date.now()}`,
+    id: data.id || `cust_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
     name: data.name || '',
     industry: data.industry || '',
     region: data.region || '',

@@ -35,7 +35,7 @@ test.describe('Onboarding Dashboard', () => {
     // Click on Customer Info tab
     await page.getByRole('button', { name: 'Customer Info' }).click();
     
-    // Verify placeholder content is shown
-    await expect(page.locator('.placeholder h2')).toContainText('Customer Info');
+    // Verify the Customer Info form is shown
+    await expect(page.getByRole('heading', { name: 'Customer Info' })).toBeVisible();
   });
 });

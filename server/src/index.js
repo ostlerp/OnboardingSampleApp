@@ -1,6 +1,9 @@
 const express = require('express');
 const cors = require('cors');
 const store = require('./data/store');
+const { createCustomer, createDefaultOnboardingSteps, calculateProgress } = require('./models');
+const { normalizeCustomerInput } = require('./customers/normalize');
+const { INDUSTRIES, REGIONS, validateCustomerInput } = require('./customers/validate');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -17,6 +20,11 @@ app.get('/api/health', (req, res) => {
 // Get all customers
 app.get('/api/customers', (req, res) => {
   res.json(store.getCustomers());
+});
+
+// Lists the Customer Info form offers for industry and region
+app.get('/api/customers/options', (req, res) => {
+  res.json({ industries: INDUSTRIES, regions: REGIONS });
 });
 
 // Get customer by ID
@@ -65,8 +73,33 @@ app.get('/api/tenants/:customerId', (req, res) => {
   res.json(tenant);
 });
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`🚀 Onboarding API server running at http://localhost:${PORT}`);
-  console.log(`   Health check: http://localhost:${PORT}/api/health`);
+// Onboard a new customer from the Customer Info form
+app.post('/api/customers', (req, res) => {
+  const input = normalizeCustomerInput(req.body);
+  const errors = validateCustomerInput(input);
+  if (Object.keys(errors).length > 0) {
+    return res.status(400).json({ errors });
+  }
+
+  const customer = store.addCustomer(createCustomer(input));
+  const steps = createDefaultOnboardingSteps().map(step =>
+    step.id === 'step_1' ? { ...step, status: 'completed' } : step
+  );
+  store.addOnboardingState({
+    customerId: customer.id,
+    steps,
+    progressPercent: calculateProgress(steps)
+  });
+
+  res.status(201).json(customer);
 });
+
+module.exports = app;
+
+// Start server when run directly; tests import the app without listening
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`🚀 Onboarding API server running at http://localhost:${PORT}`);
+    console.log(`   Health check: http://localhost:${PORT}/api/health`);
+  });
+}
