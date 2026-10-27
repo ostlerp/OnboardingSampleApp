@@ -238,3 +238,23 @@ header p {
   color: #dc2626;
   margin-top: 16px;
 }
+
+.mapping-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 16px;
+}
+
+.mapping-table th,
+.mapping-table td {
+  text-align: left;
+  padding: 8px 12px;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.mapping-warning {
+  color: #b45309;
+  font-size: 0.9rem;
+  margin-top: 16px;
+  padding-left: 20px;
+}

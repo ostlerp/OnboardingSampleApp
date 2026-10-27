@@ -4,13 +4,16 @@ const store = require('./data/store');
 const { createCustomer, createDefaultOnboardingSteps, calculateProgress } = require('./models');
 const { normalizeCustomerInput } = require('./customers/normalize');
 const { INDUSTRIES, REGIONS, validateCustomerInput } = require('./customers/validate');
+const { parseCsv } = require('./mapping/csv');
+const { suggestColumns } = require('./mapping/suggest');
+const { CLIENT_FIELDS } = require('./mapping/targets');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
 // Middleware
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '1mb' }));
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -92,6 +95,19 @@ app.post('/api/customers', (req, res) => {
   });
 
   res.status(201).json(customer);
+});
+
+// Read an uploaded clients file and suggest which source column fills each field
+app.post('/api/customers/:id/mapping/analyze', (req, res) => {
+  if (!store.getCustomerById(req.params.id)) {
+    return res.status(404).json({ error: 'Customer not found' });
+  }
+  if (typeof req.body.csv !== 'string' || req.body.csv.trim() === '') {
+    return res.status(400).json({ errors: { csv: 'Choose a clients CSV file' } });
+  }
+
+  const { headers, warnings } = parseCsv(req.body.csv);
+  res.json({ headers, warnings, fields: CLIENT_FIELDS, columns: suggestColumns(headers) });
 });
 
 module.exports = app;
