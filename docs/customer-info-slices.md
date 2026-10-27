@@ -30,7 +30,7 @@ Each slice ships on its own and leaves the app working. Later slices build on th
 - `server/src/customers/normalize.test.js`, `validate.test.js`: the cleaning and required-field rules.
 - `server/src/customers/routes.test.js`: `201`, `400` with nothing stored, the onboarding state at 25%, and the options endpoint.
 - `tests/e2e/customer-info.spec.js`: the happy path only, creating a customer from the form and seeing it in the queue at 25%. The field-error e2e test from the plan moves to slice 2, because the browser's `required` check stops empty submits before the server sees them.
-- `tests/e2e/dashboard.spec.js`: the "switch between tabs" test now checks for the form heading, because the Customer Info placeholder is gone.
+- `tests/e2e/dashboard.spec.js`: the "switch between tabs" test now checks for the form heading, because the Customer Info placeholder is gone. The "example customer" test is scoped to the Acme card, because the customer spec adds a second card to the shared server.
 
 ## Slice 2: validate email and list values (AC3 + AC5)
 
@@ -52,7 +52,7 @@ Each slice ships on its own and leaves the app working. Later slices build on th
 
 ## Slice 5: regression check (AC8)
 
-- Confirm the seeded Acme customer, the existing endpoints, and the existing unit and e2e tests still behave as before. The only intended change to an existing test is the Customer Info tab check in slice 1.
+- Confirm the seeded Acme customer, the existing endpoints, and the existing unit and e2e tests still behave as before. The intended changes to existing tests are the Customer Info tab check and the Acme-scoped example customer check, both in slice 1.
 
 ## Verifying slice 1 by hand
 

@@ -165,8 +165,11 @@ function CustomerInfoTab({ onCreated }) {
 
   useEffect(() => {
     fetch('/api/customers/options')
-      .then(res => res.json())
-      .then(setOptions)
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
+      .then(data => setOptions({ industries: data.industries ?? [], regions: data.regions ?? [] }))
       .catch(err => console.error('Failed to load customer options:', err));
   }, []);
 
@@ -188,7 +191,7 @@ function CustomerInfoTab({ onCreated }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form)
       });
-      const body = await res.json();
+      const body = await res.json().catch(() => ({}));
       if (!res.ok) {
         if (body.errors) {
           setErrors(body.errors);
