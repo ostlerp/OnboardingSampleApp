@@ -36,6 +36,12 @@ describe('parseCsv', () => {
     assert.strictEqual(rows.length, 2);
   });
 
+  it('should report the file line of each row, counting skipped blank lines', () => {
+    const { lines } = parseCsv('a,b\n\n1,2\n\n3,4\n');
+
+    assert.deepStrictEqual(lines, [3, 5]);
+  });
+
   it('should keep a comma inside quotes in one field', () => {
     const { rows, warnings } = parseCsv('a,b\n"x, y",2');
 

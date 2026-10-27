@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import DataMappingTab from './DataMappingTab';
 import TenantSetupTab from './TenantSetupTab';
+import ImportTab from './ImportTab';
 
 const TABS = [
   { id: 'dashboard', label: 'Dashboard' },
@@ -74,7 +75,7 @@ function App() {
           <TenantSetupTab onActive={reloadOnboarding} />
         )}
         {activeTab === 'import' && (
-          <PlaceholderTab title="Import" description="Import customer data into the platform" />
+          <ImportTab onImported={reloadOnboarding} />
         )}
       </main>
     </div>
@@ -258,18 +259,6 @@ function FormSelect({ id, label, options, error, ...selectProps }) {
         ))}
       </select>
       {error && <span className="field-error">{error}</span>}
-    </div>
-  );
-}
-
-function PlaceholderTab({ title, description }) {
-  return (
-    <div className="placeholder">
-      <h2>{title}</h2>
-      <p>{description}</p>
-      <p style={{ marginTop: '20px', fontSize: '0.9rem' }}>
-        🚧 This section is ready to be built
-      </p>
     </div>
   );
 }

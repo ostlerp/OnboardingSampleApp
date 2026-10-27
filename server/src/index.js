@@ -11,6 +11,7 @@ const { validateColumns, pickColumns } = require('./mapping/validate');
 const { PLANS } = require('./tenants/options');
 const { suggestSubdomain, normalizeTenantConfig, validateTenantConfig } = require('./tenants/config');
 const { createProvisioner, delayFromEnv } = require('./tenants/provisioner');
+const { runImport } = require('./import/import');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -222,6 +223,27 @@ app.post('/api/tenants/:customerId/provision', (req, res) => {
     store.updateTenant(tenant.customerId, { status: 'active' });
     store.setOnboardingStepStatus(tenant.customerId, 'step_3', 'completed');
   });
+});
+
+// Import a customer's clients into its active tenant using the saved mapping
+app.post('/api/customers/:id/import', (req, res) => {
+  if (!store.getCustomerById(req.params.id)) {
+    return res.status(404).json({ error: 'Customer not found' });
+  }
+  const mapping = store.getMapping(req.params.id);
+  const tenant = store.getTenantByCustomerId(req.params.id);
+  const missing = [];
+  if (!mapping) missing.push('mapping');
+  if (tenant?.status !== 'active') missing.push('activeTenant');
+  if (missing.length > 0) {
+    return res.status(409).json({ error: 'Not ready to import', missing });
+  }
+
+  const { records, summary } = runImport(parseCsv(mapping.csv), mapping, store.getImportedClients(tenant.id));
+  store.saveImportedClients(tenant.id, records);
+  store.setOnboardingStepStatus(req.params.id, 'step_4', summary.failed === 0 ? 'completed' : 'in_progress');
+
+  res.json(summary);
 });
 
 module.exports = app;

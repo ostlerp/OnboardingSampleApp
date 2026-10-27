@@ -320,3 +320,32 @@ header p {
   color: #9ca3af;
   cursor: default;
 }
+
+.import-tab {
+  max-width: 720px;
+}
+
+.import-tab h2 {
+  margin-bottom: 4px;
+}
+
+.readiness-list {
+  list-style: none;
+  margin-bottom: 16px;
+}
+
+.readiness-list li {
+  margin-bottom: 4px;
+}
+
+.readiness-list .ready {
+  color: #047857;
+}
+
+.readiness-list .not-ready {
+  color: #b45309;
+}
+
+.import-summary {
+  margin-top: 16px;
+}

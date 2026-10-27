@@ -10,7 +10,8 @@ const store = {
   customers: [],
   tenants: [],
   onboardingStates: [],
-  mappings: {}
+  mappings: {},
+  importedClients: {}
 };
 
 // Seed with example data
@@ -121,6 +122,19 @@ function saveMapping(customerId, mapping) {
   return mapping;
 }
 
+function getImportedClients(tenantId) {
+  return { ...(store.importedClients[tenantId] || {}) };
+}
+
+function saveImportedClients(tenantId, records) {
+  const clients = store.importedClients[tenantId] || {};
+  records.forEach(record => {
+    clients[record.externalId] = record;
+  });
+  store.importedClients[tenantId] = clients;
+  return { ...clients };
+}
+
 module.exports = {
   getCustomers,
   getCustomerById,
@@ -135,5 +149,7 @@ module.exports = {
   updateOnboardingState,
   setOnboardingStepStatus,
   getMapping,
-  saveMapping
+  saveMapping,
+  getImportedClients,
+  saveImportedClients
 };
