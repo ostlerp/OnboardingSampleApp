@@ -11,7 +11,7 @@ async function fetchJson(url) {
   return res.json();
 }
 
-function TenantSetupTab() {
+function TenantSetupTab({ onActive }) {
   const [customerId, setCustomerId] = useState('');
   const [plans, setPlans] = useState([]);
   const [tenant, setTenant] = useState(null);
@@ -20,6 +20,7 @@ function TenantSetupTab() {
   const [message, setMessage] = useState(null);
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [starting, setStarting] = useState(false);
 
   useEffect(() => {
     fetchJson('/api/tenants/options')
@@ -56,6 +57,47 @@ function TenantSetupTab() {
     };
   }, [customerId]);
 
+  useEffect(() => {
+    if (tenant?.status !== 'provisioning') return;
+
+    const timer = setInterval(() => {
+      fetchJson(`/api/tenants/${tenant.customerId}`)
+        .then(latest => {
+          if (!latest || latest.status === 'provisioning') return;
+          setTenant(latest);
+          if (latest.status === 'active') {
+            setMessage('Tenant is active. Tenant Setup is complete.');
+            onActive();
+          }
+        })
+        .catch(err => console.error('Failed to refresh tenant:', err));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [tenant?.status, tenant?.customerId]);
+
+  async function handleProvision() {
+    setStarting(true);
+    setErrors({});
+    setMessage(null);
+    setError(null);
+
+    try {
+      const res = await fetch(`/api/tenants/${customerId}/provision`, { method: 'POST' });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (body.errors) setErrors(body.errors);
+        setError(body.error || `HTTP ${res.status}`);
+        return;
+      }
+      setTenant(body);
+    } catch (err) {
+      console.error('Failed to start provisioning:', err);
+      setError(err.message);
+    } finally {
+      setStarting(false);
+    }
+  }
+
   function handleChange(e) {
     const { name, value } = e.target;
     setForm(prev => ({ ...prev, [name]: value }));
@@ -84,6 +126,7 @@ function TenantSetupTab() {
         return;
       }
       setTenant(body);
+      setForm(prev => ({ ...prev, plan: body.plan, subdomain: body.subdomain, adminEmail: body.adminEmail }));
       setMessage('Tenant configuration saved.');
     } catch (err) {
       console.error('Failed to save tenant:', err);
@@ -95,6 +138,7 @@ function TenantSetupTab() {
 
   const status = tenant?.status ?? 'not configured';
   const editable = !tenant || EDITABLE_STATUSES.includes(tenant.status);
+  const unsaved = !tenant || ['plan', 'subdomain', 'adminEmail'].some(key => form[key] !== tenant[key]);
 
   return (
     <div className="tenant-tab">
@@ -106,7 +150,9 @@ function TenantSetupTab() {
       {customerId && (
         <form onSubmit={handleSave}>
           <p className="tenant-status">
-            Status: <span className={`status-badge ${status.replace(' ', '-')}`}>{status}</span>
+            Status: <span className={`status-badge ${status.replace(' ', '-')}`}>
+              {status === 'provisioning' ? 'Provisioning…' : status}
+            </span>
           </p>
 
           <fieldset disabled={!editable} className="tenant-fieldset">
@@ -132,10 +178,16 @@ function TenantSetupTab() {
               <input id="region" value={form.region || '(not set)'} readOnly />
             </div>
 
-            <button type="submit" className="btn-primary" disabled={saving}>
-              {saving ? 'Saving...' : 'Save configuration'}
-            </button>
+            <div className="button-row">
+              <button type="submit" className="btn-secondary" disabled={saving}>
+                {saving ? 'Saving...' : 'Save configuration'}
+              </button>
+              <button type="button" className="btn-primary" onClick={handleProvision} disabled={unsaved || starting}>
+                {starting ? 'Starting...' : 'Provision tenant'}
+              </button>
+            </div>
           </fieldset>
+          {editable && unsaved && <p className="form-hint">Save the configuration to provision it.</p>}
         </form>
       )}
 

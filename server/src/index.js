@@ -10,9 +10,13 @@ const { CLIENT_FIELDS } = require('./mapping/targets');
 const { validateColumns, pickColumns } = require('./mapping/validate');
 const { PLANS } = require('./tenants/options');
 const { suggestSubdomain, normalizeTenantConfig, validateTenantConfig } = require('./tenants/config');
+const { createProvisioner, delayFromEnv } = require('./tenants/provisioner');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+
+// Tests replace this to control when and how provisioning finishes
+app.locals.provisioner = createProvisioner({ delayMs: delayFromEnv(process.env.PROVISION_DELAY_MS) });
 
 // Middleware
 app.use(cors());
@@ -195,6 +199,29 @@ app.put('/api/tenants/:customerId', (req, res) => {
   }
   const tenant = store.addTenant(createTenant({ customerId: customer.id, ...config, region: customer.region }));
   res.status(201).json(tenant);
+});
+
+// Start provisioning a configured tenant; it becomes active in the background
+app.post('/api/tenants/:customerId/provision', (req, res) => {
+  const tenant = store.getTenantByCustomerId(req.params.customerId);
+  if (!tenant) {
+    return res.status(404).json({ error: 'Tenant not found' });
+  }
+  if (!['pending', 'failed'].includes(tenant.status)) {
+    return res.status(409).json({ error: `Tenant is already ${tenant.status}` });
+  }
+  const errors = validateTenantConfig(tenant);
+  if (Object.keys(errors).length > 0) {
+    return res.status(400).json({ error: 'Tenant configuration is incomplete', errors });
+  }
+
+  const provisioning = store.updateTenant(tenant.customerId, { status: 'provisioning', error: '' });
+  res.status(202).json(provisioning);
+
+  app.locals.provisioner.provision({ ...provisioning }, () => {
+    store.updateTenant(tenant.customerId, { status: 'active' });
+    store.setOnboardingStepStatus(tenant.customerId, 'step_3', 'completed');
+  });
 });
 
 module.exports = app;

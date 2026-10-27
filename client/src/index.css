@@ -299,3 +299,24 @@ header p {
   background: #fee2e2;
   color: #b91c1c;
 }
+
+.button-row {
+  display: flex;
+  gap: 12px;
+}
+
+.btn-secondary {
+  padding: 10px 20px;
+  border: 1px solid #2563eb;
+  border-radius: 6px;
+  background: white;
+  color: #2563eb;
+  font: inherit;
+  cursor: pointer;
+}
+
+.btn-secondary:disabled {
+  border-color: #9ca3af;
+  color: #9ca3af;
+  cursor: default;
+}

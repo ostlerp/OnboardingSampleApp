@@ -102,4 +102,64 @@ describe('Tenant routes', () => {
     assert.strictEqual((await send('PUT', '/api/tenants/nope', config('nope-co'))).status, 404);
     assert.strictEqual((await fetch(`${baseUrl}/api/customers/nope/tenant-defaults`)).status, 404);
   });
+
+  describe('POST /api/tenants/:customerId/provision', () => {
+    let pending;
+
+    before(() => {
+      app.locals.provisioner = { provision: (tenant, onDone) => pending.push(onDone) };
+    });
+
+    const finishAll = () => pending.splice(0).forEach(onDone => onDone({ ok: true }));
+
+    it('should return 202 provisioning, then become active and complete Tenant Setup', async () => {
+      pending = [];
+      const customer = await createCustomer('Provisioned Co');
+      await send('PUT', `/api/tenants/${customer.id}`, config('provisioned-co'));
+      const res = await send('POST', `/api/tenants/${customer.id}/provision`);
+      const during = await (await fetch(`${baseUrl}/api/tenants/${customer.id}`)).json();
+      const stateDuring = await (await fetch(`${baseUrl}/api/customers/${customer.id}/onboarding`)).json();
+
+      assert.strictEqual(res.status, 202);
+      assert.strictEqual((await res.json()).status, 'provisioning');
+      assert.strictEqual(during.status, 'provisioning');
+      assert.strictEqual(stateDuring.steps[2].status, 'pending');
+
+      finishAll();
+      const after = await (await fetch(`${baseUrl}/api/tenants/${customer.id}`)).json();
+      const stateAfter = await (await fetch(`${baseUrl}/api/customers/${customer.id}/onboarding`)).json();
+
+      assert.strictEqual(after.status, 'active');
+      assert.strictEqual(stateAfter.steps[2].status, 'completed');
+      assert.strictEqual(stateAfter.progressPercent, 50);
+    });
+
+    it('should return 409 while provisioning and once active', async () => {
+      pending = [];
+      const customer = await createCustomer('Twice Co');
+      await send('PUT', `/api/tenants/${customer.id}`, config('twice-co'));
+      await send('POST', `/api/tenants/${customer.id}/provision`);
+      const whileProvisioning = await send('POST', `/api/tenants/${customer.id}/provision`);
+      finishAll();
+      const onceActive = await send('POST', `/api/tenants/${customer.id}/provision`);
+
+      assert.strictEqual(whileProvisioning.status, 409);
+      assert.strictEqual(onceActive.status, 409);
+      assert.strictEqual(pending.length, 0);
+    });
+
+    it('should return 400 when the configuration is incomplete', async () => {
+      pending = [];
+      const res = await send('POST', '/api/tenants/tenantless/provision');
+      const acme = store.getTenantByCustomerId('cust_001');
+      store.updateTenant('cust_001', { subdomain: '' });
+      const incomplete = await send('POST', '/api/tenants/cust_001/provision');
+      store.updateTenant('cust_001', { subdomain: acme.subdomain });
+
+      assert.strictEqual(res.status, 404);
+      assert.strictEqual(incomplete.status, 400);
+      assert.strictEqual(store.getTenantByCustomerId('cust_001').status, 'pending');
+      assert.strictEqual(pending.length, 0);
+    });
+  });
 });
